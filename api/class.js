@@ -7,7 +7,8 @@ const crypto = require('crypto');
 //   meta: x = Metaphorical Abstraction, y = Source Relevance
 //   maya: x = Familiarity,              y = Novelty
 
-const PASSCODE = process.env.INSTRUCTOR_PASSCODE || 'chung';
+// Set in Vercel as the INSTRUCTOR_PASSCODE environment variable (never in the code).
+const PASSCODE = process.env.INSTRUCTOR_PASSCODE;
 const TOOLS = ['maya', 'meta'];
 const LABEL_MODES = ['names', 'hidden'];
 
@@ -122,7 +123,7 @@ module.exports = async function handler(req, res) {
 
     // ---------- Everything below is instructor-only ----------
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-    if (body.passcode !== PASSCODE) return res.status(403).json({ error: 'Invalid passcode' });
+    if (!PASSCODE || body.passcode !== PASSCODE) return res.status(403).json({ error: 'Invalid passcode' });
 
     if (action === 'create') {
       const tool = TOOLS.includes(body.tool) ? body.tool : null;

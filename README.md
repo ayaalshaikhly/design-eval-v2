@@ -1,93 +1,55 @@
-# Design Evaluation Suite
+# Design Evaluation Suite — Version 2
 
-A suite of peer-based evaluation tools for design studio education, built for the School of Industrial Design at Carleton University.
+A peer-evaluation tool for design studio education, built for the School of Industrial Design at Carleton University.
 
-Developed by **Aya Al-Shaikhly** under the supervision of **Prof. WonJoon Chung**
+Developed by **Aya Al-Shaikhly**, based on evaluation frameworks by **Prof. WonJoon Chung**
 School of Industrial Design, Carleton University — Fall 2026
 
 ## Tools
 
-### 1. MAYA Calibration Tool
-Students anonymously rate each other's design ideas on **Novelty** and **Familiarity** (10 items, 1-5 scale), and the tool plots results on a Novelty-Familiarity map relative to the **MAYA zone** (Most Advanced Yet Acceptable). The MAYA zone adjusts automatically based on product type.
+- **Metaphoric Design Evaluation** — Metaphorical Abstraction (Highly Literal → Highly Abstract) and Source Relevance (Irrelevant → Highly Relevant), up to 3 ideas per presenter.
+- **MAYA Calibration** — Familiarity (Hard to understand → Instantly understood) and Novelty (Very familiar → Never seen before), plotted against the MAYA zone (Most Advanced Yet Acceptable).
 
-### 2. Metaphoric Design Evaluation
-Students evaluate design ideas on **Metaphorical Abstraction** (Literal to Abstract) and **Source Relevance** (Irrelevant to Highly Relevant). Supports up to 3 ideas per presenter, with results plotted on an Abstraction-Relevance map relative to the target metaphoric design zone.
+Every point of every 1–5 scale is described on screen when the student taps it.
 
-## How It Works
+## How a class session works
 
-1. **Instructor** selects a tool from the landing page and creates a group session
-2. **Presenter** opens the shared link, enters their details, and gets a QR code
-3. **Classmates** scan the QR code and submit anonymous ratings
-4. **Results** appear instantly — scatter plot, direction recommendations, breakdowns
-5. **Instructor** reviews all data later on a password-protected review page
+1. **Instructor** creates a session: picks the tool, uploads the class list (Excel/CSV, e.g. the Brightspace class list) or adds names one by one, and sets the target zone's position and size.
+2. **Students** scan one QR code once, tap the presenter's name, rate, and press Submit, which returns them to the name list.
+3. **Results** appear live on the instructor's board: each presenter's map with a suggested direction, and a class map of all ideas (names on or off).
+4. Results can be downloaded as CSV. Ratings are anonymous.
 
-## Tech Stack
+## Tech stack
 
-- **Frontend:** HTML, CSS, JavaScript (vanilla — no frameworks)
-- **Backend:** Vercel Serverless Functions (Node.js)
-- **Database:** Neon (PostgreSQL)
-- **Hosting:** Vercel
+- Frontend: vanilla HTML, CSS, JavaScript (SheetJS reads the class list in the browser)
+- Backend: Vercel Serverless Functions (Node.js)
+- Database: Neon (PostgreSQL)
 
-## Project Structure
+## Project structure
 
 ```
 ├── public/
-│   ├── index.html            # Landing page — choose your tool
-│   ├── maya.html             # MAYA: instructor dashboard
-│   ├── present.html          # MAYA: presenter page (QR + live results)
-│   ├── rate.html             # MAYA: student rating form (10 items)
-│   ├── review.html           # MAYA: professor review page
-│   ├── metaphoric.html       # Metaphoric: instructor dashboard
-│   ├── meta-present.html     # Metaphoric: presenter page (QR + live results)
-│   ├── meta-rate.html        # Metaphoric: student rating form (2 dims x 3 ideas)
-│   ├── meta-review.html      # Metaphoric: professor review page
-│   ├── style.css             # Shared stylesheet
-│   └── qrcode.min.js         # QR code generator
+│   ├── index.html        # Landing page — choose a tool
+│   ├── class.html        # Instructor: create sessions, class board, class map, zone, class list
+│   ├── go.html           # Student: name list → rating → back to list
+│   ├── tools.js          # Scale definitions, zone suggestions, map drawing
+│   ├── style.css
+│   ├── qrcode.min.js
+│   └── xlsx.full.min.js  # SheetJS
 ├── api/
-│   ├── create-group.js       # POST: create a group (shared)
-│   ├── get-group.js          # GET: group info (shared)
-│   ├── session.js            # POST: create MAYA session
-│   ├── get-session.js        # GET: MAYA session info
-│   ├── rate.js               # POST: submit MAYA rating
-│   ├── results.js            # GET: MAYA ratings for a session
-│   ├── groups.js             # GET: all MAYA groups with sessions
-│   ├── meta-session.js       # POST: create Metaphoric session
-│   ├── meta-get-session.js   # GET: Metaphoric session info
-│   ├── meta-rate.js          # POST: submit Metaphoric rating
-│   ├── meta-results.js       # GET: Metaphoric ratings for a session
-│   ├── meta-groups.js        # GET: all Metaphoric groups with sessions
-│   ├── clear-data.js         # POST: erase MAYA data (password protected)
-│   ├── meta-clear-data.js    # POST: erase Metaphoric data (password protected)
-│   └── setup-db.js           # GET: create/update all database tables
-├── vercel.json               # Vercel routing config
-└── package.json
+│   ├── class.js          # All session actions (get, rate, results, create, update, delete, list)
+│   └── setup-db.js       # Creates the database tables
+└── vercel.json
 ```
 
 ## Setup
 
-### 1. Database
-Create a [Neon](https://neon.tech) project and copy the connection string.
-
-### 2. Deploy
-```bash
-vercel --prod
-vercel env add DATABASE_URL production
-# paste the Neon connection string
-vercel --prod
-```
-
-### 3. Initialize tables
-Visit: `https://your-domain/api/setup-db`
-
-## Environment Variables
-
-| Variable | Description |
+| Environment variable | Description |
 |---|---|
 | `DATABASE_URL` | Neon PostgreSQL connection string |
+| `INSTRUCTOR_PASSCODE` | Instructor passcode (kept only in Vercel, never in the code) |
 
-## Live URL
-
-https://www.ayaalshaikhly.com/design-eval
+After the first deploy, open `/api/setup-db` once to create the tables.
 
 ## License
 

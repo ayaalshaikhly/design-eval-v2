@@ -6,3 +6,6 @@ svg/png_temp/
 
 .env*
 .vercel
+
+# Guides contain the instructor passcode; keep them local only
+Instructor Guide.*
