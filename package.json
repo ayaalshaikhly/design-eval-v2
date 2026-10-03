@@ -1,6 +1,6 @@
 {
-  "name": "design-eval",
-  "version": "2.0.0",
+  "name": "design-eval-v2",
+  "version": "3.0.0-dev",
   "description": "Design Evaluation Suite — MAYA Calibration & Metaphoric Design Evaluation — Carleton University",
   "dependencies": {
     "@neondatabase/serverless": "^0.10.0"
