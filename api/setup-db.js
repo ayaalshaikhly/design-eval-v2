@@ -78,7 +78,48 @@ module.exports = async function handler(req, res) {
       )
     `;
 
-    res.status(200).json({ ok: true, message: 'All tables ready (MAYA + Metaphoric).' });
+    // v2: one-QR class sessions (shared by both tools)
+    await sql`
+      CREATE TABLE IF NOT EXISTS class_sessions (
+        id TEXT PRIMARY KEY,
+        tool TEXT NOT NULL CHECK (tool IN ('maya', 'meta')),
+        name TEXT NOT NULL,
+        target_product TEXT NOT NULL DEFAULT 'product',
+        ideas_per_presenter INTEGER NOT NULL DEFAULT 1 CHECK (ideas_per_presenter BETWEEN 1 AND 3),
+        zone_cx REAL NOT NULL,
+        zone_cy REAL NOT NULL,
+        zone_rx REAL NOT NULL,
+        zone_ry REAL NOT NULL,
+        label_mode TEXT NOT NULL DEFAULT 'hidden',
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS class_presenters (
+        id SERIAL PRIMARY KEY,
+        session_id TEXT NOT NULL REFERENCES class_sessions(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        position INTEGER NOT NULL DEFAULT 0,
+        active BOOLEAN NOT NULL DEFAULT TRUE
+      )
+    `;
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS class_ratings (
+        id SERIAL PRIMARY KEY,
+        session_id TEXT NOT NULL REFERENCES class_sessions(id) ON DELETE CASCADE,
+        presenter_id INTEGER NOT NULL REFERENCES class_presenters(id) ON DELETE CASCADE,
+        idea_number INTEGER NOT NULL CHECK (idea_number BETWEEN 1 AND 3),
+        rater_token TEXT NOT NULL,
+        x INTEGER NOT NULL CHECK (x BETWEEN 1 AND 5),
+        y INTEGER NOT NULL CHECK (y BETWEEN 1 AND 5),
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE (session_id, presenter_id, idea_number, rater_token)
+      )
+    `;
+
+    res.status(200).json({ ok: true, message: 'All tables ready (MAYA + Metaphoric + class sessions).' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

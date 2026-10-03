@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Class Session — Design Evaluation Suite</title>
+  <link rel="stylesheet" href="style.css">
+  <script>
+    (function() {
+      var p = window.location.pathname;
+      if (p.endsWith('/')) window.BASE = p;
+      else if (p.endsWith('.html')) window.BASE = p.substring(0, p.lastIndexOf('/') + 1);
+      else window.BASE = p + '/';
+      if (!p.endsWith('/') && !p.endsWith('.html')) {
+        var link = document.createElement('link');
+        link.rel = 'stylesheet'; link.href = p + '/style.css';
+        document.head.appendChild(link);
+      }
+    })();
+  </script>
+  <script src="tools.js"></script>
+  <script src="qrcode.min.js"></script>
+  <style>
+    .passcode-screen { max-width: 400px; margin: 60px auto; text-align: center; }
+    .passcode-error { font-size: 0.82rem; color: var(--red); margin-top: 10px; display: none; }
+    .tool-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .tool-pick label {
+      border: 2px solid var(--border); border-radius: var(--radius-sm); padding: 12px; cursor: pointer;
+      font-weight: 600; text-align: center; margin: 0;
+    }
+    .tool-pick input { position: absolute; opacity: 0; }
+    .tool-pick input:checked + label { border-color: var(--accent); background: var(--accent-light); color: var(--accent); }
+    textarea {
+      width: 100%; min-height: 170px; padding: 10px 14px; font-family: var(--font); font-size: 0.9rem;
+      border: 1px solid var(--border); border-radius: var(--radius-sm); resize: vertical; line-height: 1.5;
+    }
+    .hint { font-size: 0.78rem; color: var(--text-muted); margin-top: 6px; line-height: 1.45; }
+    .upload-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+    .file-msg { font-size: 0.82rem; }
+    .file-msg.ok { color: var(--accent); }
+    .file-msg.err { color: var(--red); }
+    .zone-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 18px; margin-top: 12px; }
+    @media (max-width: 600px) { .zone-grid { grid-template-columns: 1fr; } }
+    .zone-grid label { display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 2px; }
+    input[type="range"] { width: 100%; accent-color: var(--accent); }
+    .board-top { display: flex; gap: 24px; flex-wrap: wrap; align-items: center; }
+    .board-top .info { flex: 1; min-width: 240px; }
+    .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+    .tabs .btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .p-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      padding: 10px 14px; border: 1px solid var(--border-light); border-radius: var(--radius-sm);
+      margin-bottom: 6px; background: var(--bg); cursor: pointer;
+    }
+    .p-row:hover { border-color: var(--accent); }
+    .p-row .count { font-size: 0.8rem; color: var(--text-muted); white-space: nowrap; }
+    .p-row .count strong { color: var(--accent); }
+    .p-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 0 10px; }
+    .x-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1rem; min-width: 32px; min-height: 32px; }
+    .x-btn:hover { color: var(--red); }
+    .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 300; align-items: center; justify-content: center; padding: 16px; }
+    .modal-box { background: #fff; border-radius: 12px; padding: 28px; text-align: center; max-width: 92vw; max-height: 92vh; overflow: auto; }
+    .frame-note { font-size: 0.82rem; color: var(--text-muted); margin-top: 12px; line-height: 1.5; }
+    .session-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--border-light); }
+    .session-row:last-child { border-bottom: none; }
+    .session-row .meta { font-size: 0.78rem; color: var(--text-muted); }
+    .switch { display: inline-flex; align-items: center; gap: 8px; font-size: 0.85rem; font-weight: 500; cursor: pointer; margin: 0; }
+    .switch input { width: 18px; height: 18px; accent-color: var(--accent); }
+  </style>
+</head>
+<body>
+
+  <header class="header">
+    <div class="container">
+      <h1>Design <span>Evaluation Suite</span></h1>
+      <div class="btn-group">
+        <a href="#" id="homeLink" class="btn btn-sm btn-secondary">Sessions</a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div class="container">
+
+      <!-- Passcode -->
+      <div id="passView" class="hidden">
+        <div class="card passcode-screen">
+          <h2 style="font-size:1.1rem; margin-bottom:6px">Instructor Access</h2>
+          <p class="text-muted" style="font-size:0.85rem; margin-bottom:18px">Enter the passcode to create and run sessions.</p>
+          <form id="passForm">
+            <div class="form-row"><input type="password" id="passInput" placeholder="Passcode" autocomplete="off" required style="text-align:center"></div>
+            <button type="submit" class="btn btn-primary" style="width:100%">Unlock</button>
+            <p class="passcode-error" id="passError">Incorrect passcode. Please try again.</p>
+          </form>
+        </div>
+      </div>
+
+      <!-- Home: create + past sessions -->
+      <div id="homeView" class="hidden">
+        <div class="card" style="max-width:720px; margin:0 auto 20px">
+          <h2 class="card-title">New Class Session</h2>
+          <p class="card-subtitle">Upload the class list once. Students scan one QR code, tap the presenter's name, and rate.</p>
+
+          <form id="createForm">
+            <div class="form-row">
+              <label>Tool</label>
+              <div class="tool-pick">
+                <div><input type="radio" name="tool" id="toolMeta" value="meta" checked><label for="toolMeta">Metaphoric Design</label></div>
+                <div><input type="radio" name="tool" id="toolMaya" value="maya"><label for="toolMaya">MAYA Calibration</label></div>
+              </div>
+            </div>
+            <div class="form-grid">
+              <div class="form-row">
+                <label for="sName">Session name</label>
+                <input type="text" id="sName" placeholder="e.g., IDES 2nd-year studio, Oct 9" required>
+              </div>
+              <div class="form-row">
+                <label for="sProduct">Product being designed</label>
+                <input type="text" id="sProduct" placeholder="e.g., clock" required>
+              </div>
+            </div>
+            <div class="form-row">
+              <label for="sIdeas">Ideas per presenter</label>
+              <select id="sIdeas">
+                <option value="1" selected>1 idea</option>
+                <option value="2">2 ideas</option>
+                <option value="3">3 ideas</option>
+              </select>
+            </div>
+
+            <div class="form-row">
+              <label for="newName">Students (presenters)</label>
+              <div class="upload-row">
+                <label for="fileInput" class="btn btn-sm btn-secondary" style="margin:0">Upload Excel or CSV</label>
+                <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" class="hidden">
+                <span class="file-msg" id="fileMsg"></span>
+              </div>
+              <div class="upload-row">
+                <input type="text" id="newName" placeholder="Or type a student's name" autocomplete="off" style="flex:1; min-width:180px">
+                <button type="button" class="btn btn-sm btn-primary" id="newNameBtn" title="Add this name" style="font-size:1.1rem">+</button>
+              </div>
+              <p class="hint" style="margin:0 0 8px">Press + or Enter after each name. Works with the Brightspace class list: it finds the name columns automatically.</p>
+              <div id="nameChips"></div>
+              <p class="hint"><strong id="nameCount">0</strong> students in the list.</p>
+            </div>
+
+            <div class="form-row">
+              <label>Target zone</label>
+              <p class="hint" style="margin:0 0 6px">Move the sliders to place and size the zone for this project.</p>
+              <div id="createZone"></div>
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="width:100%" id="createBtn">Create Session</button>
+          </form>
+        </div>
+
+        <div class="card" style="max-width:720px; margin:0 auto">
+          <h2 class="card-title">Past Sessions</h2>
+          <div id="sessionList"><p class="text-muted" style="font-size:0.85rem">Loading&hellip;</p></div>
+        </div>
+      </div>
+
+      <!-- Board -->
+      <div id="boardView" class="hidden">
+        <div class="card">
+          <div class="board-top">
+            <div class="info">
+              <h2 class="card-title" id="bTitle">&mdash;</h2>
+              <div class="session-info" style="margin-bottom:10px">
+                <div class="session-info-item">Tool: <strong id="bTool">&mdash;</strong></div>
+                <div class="session-info-item">Product: <strong id="bProduct">&mdash;</strong></div>
+                <div class="session-info-item">Students: <strong id="bCount">&mdash;</strong></div>
+              </div>
+              <p style="font-size:0.88rem; margin-bottom:8px">Students scan this QR code <strong>once</strong>, then tap each presenter's name to rate.</p>
+              <div class="qr-url" id="bLink">&mdash;</div>
+              <div class="btn-group" style="margin-top:12px">
+                <button class="btn btn-sm btn-primary" id="bigQrBtn">Show QR full screen</button>
+                <button class="btn btn-sm btn-secondary" id="copyBtn">Copy link</button>
+              </div>
+            </div>
+            <div id="qrSmall" style="cursor:pointer" title="Show full screen"></div>
+          </div>
+        </div>
+
+        <div class="tabs">
+          <button class="btn btn-sm btn-secondary active" data-tab="tabPresenters">Presenters</button>
+          <button class="btn btn-sm btn-secondary" data-tab="tabMap">Class map</button>
+          <button class="btn btn-sm btn-secondary" data-tab="tabSettings">Zone &amp; class list</button>
+          <button class="btn btn-sm btn-secondary" id="csvBtn">Download results (CSV)</button>
+        </div>
+
+        <div id="tabPresenters" class="tab card">
+          <h3 class="card-title">Presenters</h3>
+          <p class="card-subtitle">Click a name to show that presenter's results. The number is how many classmates have rated so far.</p>
+          <div class="p-grid" id="pList"></div>
+        </div>
+
+        <div id="tabMap" class="tab card hidden">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap">
+            <div>
+              <h3 class="card-title">Class map</h3>
+              <p class="card-subtitle" id="mapSummary" style="margin-bottom:8px">&mdash;</p>
+            </div>
+            <label class="switch"><input type="checkbox" id="showNames"> Show names on the map</label>
+          </div>
+          <div class="chart-wrapper"><canvas id="classCanvas"></canvas></div>
+          <p class="frame-note">Each diamond is one idea, placed at the average of all its ratings. This shows where ideas are now, not how good they are: every early idea can be developed toward the zone.<br>
+            Ask the class before you turn on names. If anyone prefers not to, keep names off and use the Presenters tab in one-on-one meetings.</p>
+        </div>
+
+        <div id="tabSettings" class="tab card hidden">
+          <h3 class="card-title">Target zone</h3>
+          <p class="card-subtitle">Changes apply right away to all maps.</p>
+          <div id="boardZone"></div>
+          <button class="btn btn-sm btn-primary" id="saveZoneBtn" style="margin-top:12px">Save zone</button>
+          <span class="file-msg ok" id="zoneSaved" style="margin-left:8px"></span>
+          <hr class="divider">
+          <h3 class="card-title">Class list</h3>
+          <p class="card-subtitle">Add a student who was missing, or remove someone who is absent. Removed names disappear from students' phones within 30 seconds.</p>
+          <div class="upload-row">
+            <input type="text" id="addName" placeholder="Student name" style="flex:1; min-width:180px">
+            <button class="btn btn-sm btn-primary" id="addBtn">Add</button>
+          </div>
+          <div id="editList"></div>
+        </div>
+      </div>
+
+      <!-- Presenter results modal -->
+      <div class="modal" id="resultModal">
+        <div class="modal-box" style="width:760px">
+          <h2 style="font-size:1.2rem; margin-bottom:2px" id="rName">&mdash;</h2>
+          <p class="text-muted" style="font-size:0.85rem; margin-bottom:12px" id="rMeta">&mdash;</p>
+          <div class="chart-wrapper"><canvas id="presenterCanvas"></canvas></div>
+          <div id="rBanners" style="text-align:left"></div>
+          <p class="frame-note">Each faint dot is one anonymous rating (bigger = more people). The diamond is the average. This is feedback to help the idea grow, not a grade.</p>
+          <button class="btn btn-sm btn-secondary" style="margin-top:12px" onclick="document.getElementById('resultModal').style.display='none'">Close</button>
+        </div>
+      </div>
+
+      <!-- QR modal -->
+      <div class="modal" id="qrModal">
+        <div class="modal-box">
+          <div id="qrLarge"></div>
+          <p style="font-size:1.1rem; font-weight:600; margin-top:14px">Scan once, then tap the presenter's name</p>
+          <p class="text-muted" style="font-size:0.85rem; margin-top:4px; word-break:break-all" id="qrLargeUrl"></p>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <script src="xlsx.full.min.js" defer></script>
+  <script>
+  (function() {
+    var AUTH_KEY = 'de2_instructor';
+    var params = new URLSearchParams(window.location.search);
+    var boardId = params.get('s');
+    var passcode = null;
+    try { passcode = sessionStorage.getItem(AUTH_KEY); } catch (e) {}
+    var board = null, results = null, pollTimer = null, openPresenterId = null;
+    var createZone = null, boardZoneEd = null;
+
+    function api(action, body) {
+      var opts = body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ passcode: passcode }, body)) } : {};
+      return fetch(window.BASE + 'api/class?action=' + action, opts).then(function (r) {
+        return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return j; });
+      });
+    }
+    function get(action, id) {
+      return fetch(window.BASE + 'api/class?action=' + action + '&id=' + encodeURIComponent(id)).then(function (r) {
+        return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return j; });
+      });
+    }
+    function show(id) {
+      ['passView', 'homeView', 'boardView'].forEach(function (v) { document.getElementById(v).classList.toggle('hidden', v !== id); });
+    }
+    function rateUrl(id) { return window.location.origin + window.BASE + 'go.html?s=' + id; }
+
+    // ---------------- Passcode ----------------
+    document.getElementById('passForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var tryCode = document.getElementById('passInput').value;
+      // Checked by the server: listing sessions only works with the right passcode.
+      fetch(window.BASE + 'api/class?action=list', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ passcode: tryCode }) })
+        .then(function (r) {
+          if (!r.ok) throw new Error();
+          passcode = tryCode;
+          try { sessionStorage.setItem(AUTH_KEY, tryCode); } catch (e) {}
+          route();
+        })
+        .catch(function () {
+          document.getElementById('passError').style.display = 'block';
+          document.getElementById('passInput').value = '';
+        });
+    });
+
+    document.getElementById('homeLink').addEventListener('click', function (e) {
+      e.preventDefault();
+      history.pushState(null, '', window.BASE + 'class.html');
+      boardId = null; route();
+    });
+    window.addEventListener('popstate', function () { boardId = new URLSearchParams(location.search).get('s'); route(); });
+
+    function route() {
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+      if (!passcode) return show('passView');
+      if (boardId) return openBoard(boardId);
+      show('homeView');
+      initCreate();
+      loadSessions();
+    }
+
+    // ---------------- Zone editor ----------------
+    function zoneEditor(container, toolKey, zone) {
+      var z = Object.assign({}, zone), tool = toolKey;
+      var T = function () { return DE.TOOLS[tool]; };
+      container.innerHTML =
+        '<div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:6px">' +
+          '<select class="zPreset" style="max-width:260px"></select>' +
+          '<button type="button" class="btn btn-sm btn-secondary zReset">Reset to default</button>' +
+        '</div>' +
+        '<div class="chart-wrapper" style="max-width:460px"><canvas class="zCanvas"></canvas></div>' +
+        '<div class="zone-grid">' +
+          slider('cx', 'Centre: ' + '<span class="zxName"></span>', 1, 5, 0.1) +
+          slider('cy', 'Centre: ' + '<span class="zyName"></span>', 1, 5, 0.1) +
+          slider('rx', 'Width', 0.2, 2, 0.05) +
+          slider('ry', 'Height', 0.2, 2, 0.05) +
+        '</div>';
+      function slider(k, label, min, max, step) {
+        return '<div><label><span>' + label + '</span><strong class="zv-' + k + '"></strong></label>' +
+          '<input type="range" class="zr-' + k + '" min="' + min + '" max="' + max + '" step="' + step + '"></div>';
+      }
+      var canvas = container.querySelector('.zCanvas'), preset = container.querySelector('.zPreset');
+      function sync() {
+        ['cx', 'cy', 'rx', 'ry'].forEach(function (k) {
+          container.querySelector('.zr-' + k).value = z[k];
+          container.querySelector('.zv-' + k).textContent = (k === 'rx' || k === 'ry') ? (z[k] * 2).toFixed(1) : (+z[k]).toFixed(1);
+        });
+        container.querySelector('.zxName').textContent = T().x.short;
+        container.querySelector('.zyName').textContent = T().y.short;
+        var presets = T().presets;
+        preset.style.display = presets ? '' : 'none';
+        if (presets && preset.dataset.tool !== tool) {
+          preset.innerHTML = '<option value="">Start from a product type&hellip;</option>' + Object.keys(presets).map(function (k) { return '<option>' + DE.esc(k) + '</option>'; }).join('');
+          preset.dataset.tool = tool;
+        }
+        DE.drawMap(canvas, { tool: tool, zone: z, series: [], small: true });
+      }
+      ['cx', 'cy', 'rx', 'ry'].forEach(function (k) {
+        container.querySelector('.zr-' + k).addEventListener('input', function () { z[k] = parseFloat(this.value); sync(); });
+      });
+      preset.addEventListener('change', function () { if (this.value) { z = Object.assign({}, T().presets[this.value]); sync(); } });
+      container.querySelector('.zReset').addEventListener('click', function () { z = Object.assign({}, T().defaultZone); preset.value = ''; sync(); });
+      sync();
+      return {
+        get: function () { return Object.assign({}, z); },
+        setTool: function (t) { tool = t; z = Object.assign({}, DE.TOOLS[t].defaultZone); sync(); },
+        redraw: sync
+      };
+    }
+
+    // ---------------- Create ----------------
+    var createInited = false;
+    function initCreate() {
+      if (createInited) { createZone.redraw(); return; }
+      createInited = true;
+      var pre = params.get('tool');
+      if (pre === 'maya') document.getElementById('toolMaya').checked = true;
+      createZone = zoneEditor(document.getElementById('createZone'), selectedTool(), DE.TOOLS[selectedTool()].defaultZone);
+      document.querySelectorAll('input[name="tool"]').forEach(function (r) {
+        r.addEventListener('change', function () { createZone.setTool(selectedTool()); });
+      });
+    }
+    function selectedTool() { return document.querySelector('input[name="tool"]:checked').value; }
+
+    // The class list being built: from an upload, typed one by one, or both.
+    var classList = [];
+    function addNames(list) {
+      var have = {};
+      classList.forEach(function (n) { have[n.toLowerCase()] = 1; });
+      var added = 0;
+      list.forEach(function (n) {
+        n = String(n).replace(/\s+/g, ' ').trim();
+        if (n && !have[n.toLowerCase()]) { classList.push(n); have[n.toLowerCase()] = 1; added++; }
+      });
+      renderChips();
+      return added;
+    }
+    function renderChips() {
+      document.getElementById('nameChips').innerHTML = classList.map(function (n, i) {
+        return '<div class="p-row" style="cursor:default"><span><span class="text-muted" style="font-size:0.8rem; margin-right:8px">' + (i + 1) + '.</span>' +
+          DE.esc(n) + '</span><button type="button" class="x-btn" title="Remove" data-chip="' + i + '">&#10005;</button></div>';
+      }).join('');
+      document.getElementById('nameCount').textContent = classList.length;
+    }
+    function addTyped() {
+      var input = document.getElementById('newName');
+      if (input.value.trim()) addNames([input.value]);
+      input.value = ''; input.focus();
+    }
+    document.getElementById('newNameBtn').addEventListener('click', addTyped);
+    document.getElementById('newName').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); addTyped(); }
+    });
+    document.getElementById('nameChips').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-chip]'); if (!b) return;
+      classList.splice(parseInt(b.dataset.chip), 1); renderChips();
+    });
+
+    // Find student names in a spreadsheet: "First/Last Name" columns, a "Name" column, or the first text column.
+    function namesFromRows(rows) {
+      rows = rows.filter(function (r) { return r && r.some(function (c) { return String(c).trim(); }); });
+      if (!rows.length) return [];
+      var hdrIdx = -1, first = -1, last = -1, full = -1;
+      for (var i = 0; i < Math.min(rows.length, 6) && hdrIdx < 0; i++) {
+        rows[i].forEach(function (c, j) {
+          var h = String(c).trim().toLowerCase();
+          if (/first\s*name|given\s*name|pr[ée]nom/.test(h)) first = j;
+          else if (/last\s*name|surname|family\s*name/.test(h)) last = j;
+          else if (/^(student\s*)?(full\s*)?names?$|^student$|^nom$/.test(h)) full = j;
+        });
+        if (first >= 0 || last >= 0 || full >= 0) hdrIdx = i;
+      }
+      var body = hdrIdx >= 0 ? rows.slice(hdrIdx + 1) : rows;
+      var cell = function (r, j) { return j >= 0 && r[j] != null ? String(r[j]).trim() : ''; };
+      var out;
+      if (first >= 0 && last >= 0) out = body.map(function (r) { return (cell(r, first) + ' ' + cell(r, last)).trim(); });
+      else if (full >= 0) out = body.map(function (r) { return cell(r, full); });
+      else if (first >= 0) out = body.map(function (r) { return cell(r, first); });
+      else {
+        // No header: take the column with the most name-like text.
+        var best = 0, bestScore = -1, width = Math.max.apply(null, body.map(function (r) { return r.length; }));
+        for (var j = 0; j < width; j++) {
+          var score = body.filter(function (r) { var v = cell(r, j); return /[a-z]/i.test(v) && v.indexOf('@') < 0 && !/^\d+$/.test(v); }).length;
+          if (score > bestScore) { bestScore = score; best = j; }
+        }
+        out = body.map(function (r) { return cell(r, best); });
+      }
+      return out.map(function (n) {
+        // "Last, First" -> "First Last"
+        var m = n.match(/^([^,]+),\s*([^,]+)$/);
+        return (m ? m[2] + ' ' + m[1] : n).replace(/\s+/g, ' ').trim();
+      }).filter(function (n) { return n && n.indexOf('@') < 0 && /[a-z]/i.test(n); });
+    }
+
+    document.getElementById('fileInput').addEventListener('change', function () {
+      var f = this.files[0], msg = document.getElementById('fileMsg');
+      if (!f) return;
+      if (!window.XLSX) { msg.className = 'file-msg err'; msg.textContent = 'Still loading, please try again in a moment.'; return; }
+      var reader = new FileReader();
+      reader.onload = function (e) {
+        try {
+          var wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+          var rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
+          var names = namesFromRows(rows);
+          if (!names.length) throw new Error();
+          var added = addNames(names);
+          msg.className = 'file-msg ok';
+          msg.textContent = 'Added ' + added + ' names from ' + f.name + (added < names.length ? ' (' + (names.length - added) + ' already in the list)' : '') + '. Please check them below.';
+        } catch (err) {
+          msg.className = 'file-msg err'; msg.textContent = 'Could not find names in this file. You can paste them below instead.';
+        }
+      };
+      reader.readAsArrayBuffer(f);
+      this.value = '';
+    });
+
+    document.getElementById('createForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var names = classList.slice();
+      if (names.length < 2) { alert('Please add the students (at least 2 names).'); return; }
+      var btn = document.getElementById('createBtn'); btn.disabled = true; btn.textContent = 'Creating…';
+      api('create', {
+        tool: selectedTool(),
+        name: document.getElementById('sName').value.trim(),
+        targetProduct: document.getElementById('sProduct').value.trim(),
+        ideasPerPresenter: parseInt(document.getElementById('sIdeas').value),
+        names: names,
+        zone: createZone.get()
+      }).then(function (r) {
+        history.pushState(null, '', window.BASE + 'class.html?s=' + r.id);
+        boardId = r.id; route();
+      }).catch(function (err) { alert('Could not create the session: ' + err.message); })
+        .finally(function () { btn.disabled = false; btn.textContent = 'Create Session'; });
+    });
+
+    function loadSessions() {
+      api('list', {}).then(function (rows) {
+        var el = document.getElementById('sessionList');
+        if (!rows.length) { el.innerHTML = '<p class="text-muted" style="font-size:0.85rem">No sessions yet.</p>'; return; }
+        el.innerHTML = rows.map(function (s) {
+          return '<div class="session-row"><div><strong>' + DE.esc(s.name) + '</strong><div class="meta">' +
+            DE.esc(DE.TOOLS[s.tool].title) + ' · ' + DE.esc(s.targetProduct) + ' · ' + s.presenterCount + ' students · ' +
+            s.raterCount + ' raters · ' + new Date(s.createdAt).toLocaleDateString() + '</div></div>' +
+            '<div class="btn-group" style="flex-wrap:nowrap"><a class="btn btn-sm btn-secondary" href="class.html?s=' + encodeURIComponent(s.id) + '" data-open="' + DE.esc(s.id) + '">Open</a>' +
+            '<button class="x-btn" title="Delete session" data-del="' + DE.esc(s.id) + '" data-name="' + DE.esc(s.name) + '">&#10005;</button></div></div>';
+        }).join('');
+      }).catch(function (err) {
+        if (/passcode/i.test(err.message)) { passcode = null; try { sessionStorage.removeItem(AUTH_KEY); } catch (e) {} route(); }
+      });
+    }
+    document.getElementById('sessionList').addEventListener('click', function (e) {
+      var d = e.target.closest('[data-del]');
+      if (d) {
+        if (!confirm('Delete "' + d.dataset.name + '" and all its ratings? This cannot be undone.')) return;
+        api('delete', { id: d.dataset.del }).then(loadSessions).catch(function (err) { alert('Could not delete: ' + err.message); });
+        return;
+      }
+      var a = e.target.closest('[data-open]'); if (!a) return;
+      e.preventDefault();
+      history.pushState(null, '', window.BASE + 'class.html?s=' + a.dataset.open);
+      boardId = a.dataset.open; route();
+    });
+
+    // ---------------- Board ----------------
+    function openBoard(id) {
+      show('boardView');
+      get('results', id).catch(function () {
+        alert('Session not found.');
+        history.pushState(null, '', window.BASE + 'class.html'); boardId = null; route();
+        return null;
+      }).then(function (data) {
+        if (!data) return;
+        results = data; board = data;
+        var T = DE.TOOLS[data.tool];
+        document.getElementById('bTitle').textContent = data.name;
+        document.getElementById('bTool').textContent = T.title;
+        document.getElementById('bProduct').textContent = data.targetProduct;
+        var url = rateUrl(id);
+        document.getElementById('bLink').textContent = url;
+        var small = document.getElementById('qrSmall'); small.innerHTML = '';
+        new QRCode(small, { text: url, width: 170, height: 170, colorDark: '#1a1a2e', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
+        document.getElementById('showNames').checked = data.labelMode === 'names';
+        boardZoneEd = zoneEditor(document.getElementById('boardZone'), data.tool, data.zone);
+        renderBoard();
+        pollTimer = setInterval(refresh, 3000);
+      });
+    }
+
+    function refresh() {
+      if (!board) return Promise.resolve();
+      return get('results', board.id).then(function (data) { results = data; renderBoard(); }).catch(function () {});
+    }
+
+    function byPresenter() {
+      var map = {};
+      results.ratings.forEach(function (r) {
+        var k = r.presenter_id; (map[k] = map[k] || {})[r.idea_number] = (map[k][r.idea_number] || []).concat([r]);
+      });
+      return map;
+    }
+
+    function renderBoard() {
+      var groups = byPresenter(), T = DE.TOOLS[results.tool];
+      document.getElementById('bCount').textContent = results.presenters.length;
+      document.getElementById('pList').innerHTML = results.presenters.map(function (p) {
+        var g = groups[p.id] || {}, n = Math.max(0, ...Object.values(g).map(function (a) { return a.length; }));
+        return '<div class="p-row" data-pid="' + p.id + '"><span>' + DE.esc(p.name) + '</span><span class="count"><strong>' + n + '</strong> rated</span></div>';
+      }).join('');
+      document.getElementById('editList').innerHTML = results.presenters.map(function (p) {
+        return '<div class="p-row" style="cursor:default"><span>' + DE.esc(p.name) + '</span><button class="x-btn" title="Remove" data-remove="' + p.id + '">&#10005;</button></div>';
+      }).join('');
+
+      if (!document.getElementById('tabMap').classList.contains('hidden')) drawClassMap();
+      if (openPresenterId && document.getElementById('resultModal').style.display === 'flex') drawPresenter(openPresenterId);
+    }
+
+    function drawClassMap() {
+      var groups = byPresenter(), showNames = document.getElementById('showNames').checked, series = [], inZone = 0;
+      results.presenters.forEach(function (p, i) {
+        var g = groups[p.id] || {};
+        Object.keys(g).forEach(function (idea) {
+          var rs = g[idea], ax = DE.mean(rs, 'x'), ay = DE.mean(rs, 'y');
+          if (DE.inZone(results.zone, ax, ay)) inZone++;
+          series.push({
+            color: showNames ? DE.colorFor(i) : '#457b9d',
+            avg: { x: ax, y: ay },
+            label: showNames ? p.name + (results.ideasPerPresenter > 1 ? ' (' + idea + ')' : '') : null
+          });
+        });
+      });
+      document.getElementById('mapSummary').textContent = series.length
+        ? inZone + ' of ' + series.length + ' ideas are in the ' + DE.TOOLS[results.tool].zoneName.toLowerCase() + '.'
+        : 'No ratings yet.';
+      DE.drawMap(document.getElementById('classCanvas'), { tool: results.tool, zone: results.zone, series: series, showLabels: showNames, arrows: false, small: true });
+    }
+
+    function drawPresenter(pid) {
+      var p = results.presenters.find(function (x) { return x.id === pid; });
+      if (!p) return;
+      var g = byPresenter()[pid] || {}, T = DE.TOOLS[results.tool], series = [], banners = '';
+      var colors = ['#c1433c', '#457b9d', '#2d6a4f'];
+      var count = 0;
+      for (var i = 1; i <= results.ideasPerPresenter; i++) {
+        var rs = g[i] || [];
+        count = Math.max(count, rs.length);
+        if (!rs.length) continue;
+        var ax = DE.mean(rs, 'x'), ay = DE.mean(rs, 'y'), sug = DE.suggestion(results.tool, results.zone, ax, ay);
+        series.push({ color: colors[i - 1], ratings: rs, avg: { x: ax, y: ay } });
+        banners += '<div class="direction-banner ' + sug.cls + '"><span class="direction-icon">' + sug.icon + '</span><div>' +
+          (results.ideasPerPresenter > 1 ? '<strong>Idea ' + i + ':</strong> ' : '') + DE.esc(sug.text) +
+          '<div style="font-size:0.8rem; margin-top:4px; opacity:0.8">' + T.x.short + ': ' + ax.toFixed(1) + ' · ' + T.y.short + ': ' + ay.toFixed(1) + '</div></div></div>';
+      }
+      document.getElementById('rName').textContent = p.name;
+      document.getElementById('rMeta').textContent = count + ' classmate rating' + (count === 1 ? '' : 's') + ' · ' + T.title;
+      document.getElementById('rBanners').innerHTML = banners || '<p class="frame-note">No ratings yet. Results appear here as classmates submit.</p>';
+      DE.drawMap(document.getElementById('presenterCanvas'), { tool: results.tool, zone: results.zone, series: series });
+    }
+
+    document.getElementById('pList').addEventListener('click', function (e) {
+      var row = e.target.closest('[data-pid]'); if (!row) return;
+      openPresenterId = parseInt(row.dataset.pid);
+      document.getElementById('resultModal').style.display = 'flex';
+      drawPresenter(openPresenterId);
+      refresh();
+    });
+    document.getElementById('resultModal').addEventListener('click', function (e) { if (e.target === this) this.style.display = 'none'; });
+
+    document.querySelectorAll('.tabs [data-tab]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        document.querySelectorAll('.tabs [data-tab]').forEach(function (x) { x.classList.toggle('active', x === b); });
+        document.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('hidden', t.id !== b.dataset.tab); });
+        if (b.dataset.tab === 'tabMap') drawClassMap();
+        if (b.dataset.tab === 'tabSettings') boardZoneEd.redraw();
+      });
+    });
+
+    document.getElementById('showNames').addEventListener('change', function () {
+      drawClassMap();
+      api('update', { id: board.id, labelMode: this.checked ? 'names' : 'hidden' }).catch(function () {});
+    });
+
+    document.getElementById('saveZoneBtn').addEventListener('click', function () {
+      var msg = document.getElementById('zoneSaved');
+      api('update', { id: board.id, zone: boardZoneEd.get() }).then(function (d) {
+        results.zone = d.zone; msg.textContent = 'Saved'; setTimeout(function () { msg.textContent = ''; }, 2000); renderBoard();
+      }).catch(function (err) { alert('Could not save: ' + err.message); });
+    });
+
+    document.getElementById('addBtn').addEventListener('click', function () {
+      var input = document.getElementById('addName'), n = input.value.trim();
+      if (!n) return;
+      api('update', { id: board.id, addNames: [n] }).then(function () { input.value = ''; refresh(); })
+        .catch(function (err) { alert('Could not add: ' + err.message); });
+    });
+    document.getElementById('addName').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); document.getElementById('addBtn').click(); }
+    });
+    document.getElementById('editList').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-remove]'); if (!b) return;
+      var p = results.presenters.find(function (x) { return String(x.id) === b.dataset.remove; });
+      if (!confirm('Remove ' + (p ? p.name : 'this student') + ' from the list?')) return;
+      api('update', { id: board.id, removePresenterId: parseInt(b.dataset.remove) }).then(refresh)
+        .catch(function (err) { alert('Could not remove: ' + err.message); });
+    });
+
+    function showBigQr() {
+      var url = rateUrl(board.id), el = document.getElementById('qrLarge'), size = Math.min(window.innerWidth, window.innerHeight) * 0.7;
+      el.innerHTML = '';
+      new QRCode(el, { text: url, width: size, height: size, colorDark: '#1a1a2e', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
+      document.getElementById('qrLargeUrl').textContent = url;
+      document.getElementById('qrModal').style.display = 'flex';
+    }
+    document.getElementById('bigQrBtn').addEventListener('click', showBigQr);
+    document.getElementById('qrSmall').addEventListener('click', showBigQr);
+    document.getElementById('qrModal').addEventListener('click', function () { this.style.display = 'none'; });
+    document.getElementById('copyBtn').addEventListener('click', function () {
+      var b = this;
+      navigator.clipboard.writeText(rateUrl(board.id)).then(function () { b.textContent = 'Copied'; setTimeout(function () { b.textContent = 'Copy link'; }, 1500); });
+    });
+
+    document.getElementById('csvBtn').addEventListener('click', function () {
+      var T = DE.TOOLS[results.tool], names = {};
+      results.presenters.forEach(function (p) { names[p.id] = p.name; });
+      var q = function (v) { return '"' + String(v).replace(/"/g, '""') + '"'; };
+      var lines = [['Session', 'Presenter', 'Idea', T.x.name, T.y.name].map(q).join(',')];
+      results.ratings.forEach(function (r) {
+        lines.push([results.name, names[r.presenter_id] || '(removed)', r.idea_number, r.x, r.y].map(q).join(','));
+      });
+      var blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv' });
+      var a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+      a.download = results.name.replace(/[^\w\- ]+/g, '').trim() + ' - ratings.csv';
+      document.body.appendChild(a); a.click(); a.remove();
+    });
+
+    var rt;
+    window.addEventListener('resize', function () {
+      clearTimeout(rt);
+      rt = setTimeout(function () { if (results && boardId) renderBoard(); if (createZone && !boardId) createZone.redraw(); }, 150);
+    });
+
+    route();
+  })();
+  </script>
+</body>
+</html>

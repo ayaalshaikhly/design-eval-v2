@@ -106,7 +106,8 @@
   <!-- About Modal -->
   <div id="aboutModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:300; align-items:center; justify-content:center; cursor:pointer; padding:20px">
     <div style="background:#fff; border-radius:12px; padding:40px 36px; max-width:440px; width:100%; text-align:center; cursor:default; box-shadow:0 8px 32px rgba(0,0,0,0.15)" onclick="event.stopPropagation()">
-      <h2 style="font-size:1.2rem; font-weight:700; margin-bottom:24px; color:var(--text)">Design Evaluation Suite</h2>
+      <h2 style="font-size:1.2rem; font-weight:700; margin-bottom:4px; color:var(--text)">Design Evaluation Suite</h2>
+      <p style="font-size:0.85rem; font-weight:600; color:var(--accent); margin-bottom:24px">Version 2</p>
       <p style="font-size:0.9rem; color:var(--text-muted); margin-bottom:6px">Based on evaluation frameworks by</p>
       <p style="font-size:1.05rem; font-weight:700; color:var(--text); margin-bottom:2px">Prof. WonJoon Chung, Ph.D.</p>
       <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:24px">Associate Professor, School of Industrial Design</p>
@@ -130,16 +131,16 @@
 
       <div class="tool-grid">
 
-        <a class="tool-card" id="mayaCard" href="maya.html">
+        <a class="tool-card" id="mayaCard" href="class.html?tool=maya">
           <div class="tool-icon maya" aria-hidden="true">&#9678;</div>
           <h3>MAYA Calibration Tool</h3>
-          <p>Evaluate ideas on <strong>Novelty</strong> and <strong>Familiarity</strong> using the Most Advanced Yet Acceptable framework. 10 rating items per idea.</p>
+          <p>Evaluate ideas on <strong>Novelty</strong> and <strong>Familiarity</strong> using the Most Advanced Yet Acceptable framework. Two clearly labelled 1&ndash;5 scales.</p>
         </a>
 
-        <a class="tool-card" id="metaCard" href="metaphoric.html">
+        <a class="tool-card" id="metaCard" href="class.html?tool=meta">
           <div class="tool-icon meta" aria-hidden="true">&#9830;</div>
           <h3>Metaphoric Design Evaluation</h3>
-          <p>Evaluate ideas on <strong>Metaphorical Abstraction</strong> and <strong>Source Relevance</strong>. Rate up to 3 ideas per presenter on 2 dimensions.</p>
+          <p>Evaluate ideas on <strong>Metaphorical Abstraction</strong> and <strong>Source Relevance</strong>. Up to 3 ideas per presenter.</p>
         </a>
 
       </div>
@@ -155,11 +156,11 @@
   (function() {
     document.getElementById('mayaCard').addEventListener('click', function(e) {
       e.preventDefault();
-      window.location.href = window.BASE + 'maya.html';
+      window.location.href = window.BASE + 'class.html?tool=maya';
     });
     document.getElementById('metaCard').addEventListener('click', function(e) {
       e.preventDefault();
-      window.location.href = window.BASE + 'metaphoric.html';
+      window.location.href = window.BASE + 'class.html?tool=meta';
     });
     document.getElementById('aboutBtn').addEventListener('click', function() {
       document.getElementById('aboutModal').style.display = 'flex';

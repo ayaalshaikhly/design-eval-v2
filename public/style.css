@@ -143,6 +143,7 @@ select {
   color: #fff; box-shadow: 0 2px 8px rgba(45,106,79,.25);
 }
 .scale-option label:hover { border-color: var(--accent); color: var(--accent); }
+.scale-option input:checked + label:hover { color: #fff; }
 .scale-option input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: 2px; }
 @media (max-width: 400px) { .scale-option label { width: 40px; height: 40px; font-size: 0.8rem; } }
 

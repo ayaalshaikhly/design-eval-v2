@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rate a Presenter — Design Evaluation</title>
+  <link rel="stylesheet" href="style.css">
+  <script>
+    (function() {
+      var p = window.location.pathname;
+      if (p.endsWith('/')) window.BASE = p;
+      else if (p.endsWith('.html')) window.BASE = p.substring(0, p.lastIndexOf('/') + 1);
+      else window.BASE = p + '/';
+      if (!p.endsWith('/') && !p.endsWith('.html')) {
+        var link = document.createElement('link');
+        link.rel = 'stylesheet'; link.href = p + '/style.css';
+        document.head.appendChild(link);
+      }
+    })();
+  </script>
+  <script src="tools.js"></script>
+  <style>
+    .search { margin-bottom: 14px; }
+    .name-list { display: flex; flex-direction: column; gap: 8px; }
+    .name-btn {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      width: 100%; min-height: 54px; padding: 12px 16px; text-align: left;
+      background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
+      font-family: var(--font); font-size: 1rem; font-weight: 500; color: var(--text); cursor: pointer;
+    }
+    .name-btn:hover { border-color: var(--accent); }
+    .name-btn .done { font-size: 0.78rem; font-weight: 600; color: var(--accent); white-space: nowrap; }
+    .name-btn.rated { background: #fcfefb; }
+    .idea-block {
+      background: var(--bg); border: 1px solid var(--border-light); border-radius: var(--radius);
+      padding: 20px; margin-bottom: 14px;
+    }
+    .idea-block h3 { font-size: 1rem; margin-bottom: 2px; }
+    .dim { margin-top: 18px; }
+    .dim:first-of-type { margin-top: 10px; }
+    .dim-name { font-size: 0.92rem; font-weight: 600; }
+    .dim-q { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 10px; line-height: 1.4; }
+    .level-desc {
+      margin-top: 10px; font-size: 0.82rem; line-height: 1.45; padding: 10px 12px;
+      border-radius: var(--radius-sm); background: var(--bg-subtle); color: var(--text-muted);
+    }
+    .level-desc.chosen { background: var(--accent-light); color: var(--accent); font-weight: 500; }
+    .toast {
+      position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+      background: var(--accent); color: #fff; padding: 12px 20px; border-radius: 24px;
+      font-size: 0.9rem; font-weight: 500; box-shadow: var(--shadow-md); z-index: 400;
+      max-width: calc(100% - 32px); text-align: center;
+    }
+    .back-link {
+      background: none; border: none; color: var(--accent); font-family: var(--font);
+      font-size: 0.9rem; font-weight: 600; cursor: pointer; padding: 8px 0; margin-bottom: 8px; min-height: 44px;
+    }
+    .note { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 16px; line-height: 1.5; }
+  </style>
+</head>
+<body>
+
+  <header class="header">
+    <div class="container">
+      <h1 id="toolTitle">Design <span>Evaluation</span></h1>
+      <span class="header-badge" id="sessionBadge">Loading&hellip;</span>
+    </div>
+  </header>
+
+  <main>
+    <div class="container" style="max-width:640px">
+
+      <!-- Step 1: pick the presenter -->
+      <div id="listView" class="hidden">
+        <h2 class="card-title" style="font-size:1.15rem">Who is presenting?</h2>
+        <p class="note">Tap the presenter's name to rate their idea. Your rating is anonymous.<br>
+          Keep this page open: after each presentation, come back here and tap the next name.</p>
+        <input type="text" id="search" class="search" placeholder="Search a name&hellip;" autocomplete="off">
+        <div class="name-list" id="nameList"></div>
+      </div>
+
+      <!-- Step 2: rate -->
+      <div id="rateView" class="hidden">
+        <button type="button" class="back-link" id="backBtn">&larr; Back to the name list</button>
+        <div class="session-info">
+          <div class="session-info-item">Presenter: <strong id="rateName">&mdash;</strong></div>
+          <div class="session-info-item">Product: <strong id="rateProduct">&mdash;</strong></div>
+        </div>
+        <div id="rateForm"></div>
+        <button type="button" class="btn btn-primary" id="submitBtn" disabled style="width:100%">Submit</button>
+        <p class="note" style="text-align:center; margin-top:10px">This is feedback to help the idea grow, not a grade.</p>
+      </div>
+
+      <!-- Error -->
+      <div id="errorView" class="hidden">
+        <div class="card text-center" style="padding:48px 20px">
+          <h2 class="mb-8">Session not found</h2>
+          <p class="text-muted">Please scan the QR code from your instructor again.</p>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <script>
+  (function() {
+    var sessionId = new URLSearchParams(window.location.search).get('s');
+    var session = null, current = null, T = null;
+
+    // An anonymous random id for this phone, so rating the same person twice replaces the first answer.
+    function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+    var token = store('de2_token');
+    if (!token) {
+      token = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Math.random()).slice(2) + Date.now();
+      store('de2_token', token);
+    }
+    var ratedKey = 'de2_rated_' + sessionId;
+    var rated = {};
+    try { rated = JSON.parse(store(ratedKey) || '{}') || {}; } catch (e) { rated = {}; }
+
+    async function load() {
+      if (!sessionId) return showError();
+      try {
+        var res = await fetch(window.BASE + 'api/class?action=get&id=' + encodeURIComponent(sessionId));
+        if (!res.ok) return showError();
+        session = await res.json();
+        T = DE.TOOLS[session.tool];
+        var parts = T.title.split(' ');
+        document.getElementById('toolTitle').innerHTML = DE.esc(parts.slice(0, -1).join(' ')) + ' <span>' + DE.esc(parts[parts.length - 1]) + '</span>';
+        document.getElementById('sessionBadge').textContent = session.name;
+        renderList();
+      } catch (e) { showError(); }
+    }
+
+    function show(id) {
+      ['listView', 'rateView', 'errorView'].forEach(function (v) { document.getElementById(v).classList.toggle('hidden', v !== id); });
+    }
+    function showError() { show('errorView'); }
+
+    function renderList() {
+      var q = document.getElementById('search').value.trim().toLowerCase();
+      var list = document.getElementById('nameList');
+      var people = session.presenters.filter(function (p) { return !q || p.name.toLowerCase().indexOf(q) !== -1; });
+      list.innerHTML = people.map(function (p) {
+        var done = rated[p.id];
+        return '<button type="button" class="name-btn' + (done ? ' rated' : '') + '" data-id="' + p.id + '">' +
+          '<span>' + DE.esc(p.name) + '</span>' + (done ? '<span class="done">&#10003; Rated</span>' : '') + '</button>';
+      }).join('') || '<p class="note">No names match.</p>';
+      if (!current) show('listView');
+    }
+
+    document.getElementById('search').addEventListener('input', renderList);
+    document.getElementById('nameList').addEventListener('click', function (e) {
+      var btn = e.target.closest('.name-btn');
+      if (!btn) return;
+      var p = session.presenters.find(function (x) { return String(x.id) === btn.dataset.id; });
+      if (p) openRating(p);
+    });
+
+    function scaleHtml(dimKey, idea) {
+      var d = T[dimKey], name = dimKey + '_' + idea;
+      return '<div class="dim">' +
+        '<div class="dim-name">' + DE.esc(d.name) + '</div>' +
+        '<div class="dim-q">' + DE.esc(DE.withProduct(d.question, session.targetProduct)) + '</div>' +
+        '<div class="scale-row">' + [1, 2, 3, 4, 5].map(function (v) {
+          return '<div class="scale-option"><input type="radio" name="' + name + '" id="' + name + '_' + v + '" value="' + v + '">' +
+            '<label for="' + name + '_' + v + '">' + v + '</label></div>';
+        }).join('') + '</div>' +
+        '<div class="scale-labels"><span>1 = ' + DE.esc(d.low) + '</span><span>5 = ' + DE.esc(d.high) + '</span></div>' +
+        '<div class="level-desc" id="desc_' + name + '">Tap a number. Its meaning will appear here.</div>' +
+        '</div>';
+    }
+
+    function openRating(p) {
+      current = p;
+      document.getElementById('rateName').textContent = p.name;
+      document.getElementById('rateProduct').textContent = session.targetProduct;
+      var n = session.ideasPerPresenter, html = '';
+      for (var i = 1; i <= n; i++) {
+        html += '<div class="idea-block">' + (n > 1 ? '<h3>Idea ' + i + '</h3>' : '') +
+          scaleHtml('x', i) + scaleHtml('y', i) + '</div>';
+      }
+      document.getElementById('rateForm').innerHTML = html;
+      document.getElementById('submitBtn').disabled = true;
+      document.getElementById('submitBtn').textContent = 'Submit';
+      show('rateView');
+      window.scrollTo(0, 0);
+    }
+
+    document.getElementById('rateForm').addEventListener('change', function (e) {
+      if (e.target.type === 'radio') {
+        var dimKey = e.target.name.split('_')[0];
+        var el = document.getElementById('desc_' + e.target.name);
+        el.textContent = e.target.value + ' = ' + DE.withProduct(T[dimKey].levels[e.target.value], session.targetProduct);
+        el.classList.add('chosen');
+      }
+      var n = session.ideasPerPresenter, all = true;
+      for (var i = 1; i <= n; i++) {
+        if (!document.querySelector('input[name="x_' + i + '"]:checked') || !document.querySelector('input[name="y_' + i + '"]:checked')) all = false;
+      }
+      document.getElementById('submitBtn').disabled = !all;
+    });
+
+    document.getElementById('backBtn').addEventListener('click', backToList);
+    function backToList() { current = null; document.getElementById('search').value = ''; renderList(); show('listView'); window.scrollTo(0, 0); }
+
+    document.getElementById('submitBtn').addEventListener('click', async function () {
+      var btn = this; btn.disabled = true; btn.textContent = 'Submitting…';
+      var ratings = [];
+      for (var i = 1; i <= session.ideasPerPresenter; i++) {
+        ratings.push({
+          idea: i,
+          x: parseInt(document.querySelector('input[name="x_' + i + '"]:checked').value),
+          y: parseInt(document.querySelector('input[name="y_' + i + '"]:checked').value)
+        });
+      }
+      try {
+        var res = await fetch(window.BASE + 'api/class?action=rate', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: sessionId, presenterId: current.id, token: token, ratings: ratings })
+        });
+        if (!res.ok) throw new Error();
+        rated[current.id] = 1; store(ratedKey, JSON.stringify(rated));
+        toast('Thank you! Your rating for ' + current.name + ' was sent.');
+        backToList();
+      } catch (e) {
+        btn.disabled = false; btn.textContent = 'Submit';
+        alert('Could not send. Please check your internet connection and press Submit again.');
+      }
+    });
+
+    function toast(msg) {
+      var t = document.createElement('div'); t.className = 'toast'; t.textContent = msg;
+      document.body.appendChild(t); setTimeout(function () { t.remove(); }, 2600);
+    }
+
+    // Pick up names the instructor adds during class, without a page reload.
+    async function refreshNames() {
+      if (!session) return;
+      try {
+        var res = await fetch(window.BASE + 'api/class?action=get&id=' + encodeURIComponent(sessionId));
+        if (!res.ok) return;
+        var s = await res.json();
+        session.presenters = s.presenters;
+        if (!current) renderList();
+      } catch (e) {}
+    }
+    setInterval(refreshNames, 30000);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) refreshNames(); });
+
+    load();
+  })();
+  </script>
+</body>
+</html>
