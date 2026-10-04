@@ -75,7 +75,7 @@ main { padding: 32px 0 64px; }
 
 /* Form */
 label { display: block; font-size: 0.85rem; font-weight: 500; margin-bottom: 6px; }
-input[type="text"], input[type="number"], select {
+input[type="text"], input[type="number"], input[type="password"], select {
   width: 100%; padding: 10px 14px; font-family: var(--font); font-size: 0.95rem;
   color: var(--text); background: var(--bg); border: 1px solid var(--border);
   border-radius: var(--radius-sm); transition: border-color var(--transition);

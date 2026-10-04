@@ -18,6 +18,7 @@ Every point of every 1–5 scale is described on screen when the student taps it
 2. **Students** scan one QR code once, tap the presenter's name, rate, and press Submit, which returns them to the name list.
 3. **Results** appear live on the instructor's board: each presenter's map with a suggested direction, and a class map of all ideas (names on or off).
 4. Results can be downloaded as CSV. Ratings are anonymous.
+5. The instructor can delete one session, or erase all data.
 
 ## Tech stack
 
@@ -29,8 +30,7 @@ Every point of every 1–5 scale is described on screen when the student taps it
 
 ```
 ├── public/
-│   ├── index.html        # Landing page — choose a tool
-│   ├── class.html        # Instructor: create sessions, class board, class map, zone, class list
+│   ├── index.html        # Instructor (main page): create sessions, class board, class map, zone, class list, About
 │   ├── go.html           # Student: name list → rating → back to list
 │   ├── tools.js          # Scale definitions, zone suggestions, map drawing
 │   ├── style.css

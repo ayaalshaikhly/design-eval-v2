@@ -182,6 +182,12 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({ ok: true });
     }
 
+    if (action === 'eraseAll') {
+      // Everything: sessions, class lists and ratings (ON DELETE CASCADE).
+      await sql`DELETE FROM class_sessions`;
+      return res.status(200).json({ ok: true });
+    }
+
     if (action === 'list') {
       const rows = await sql`
         SELECT s.*,
